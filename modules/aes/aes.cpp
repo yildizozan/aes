@@ -170,44 +170,45 @@ unsigned char mul_14[] =
 
 unsigned char rcon[11] =
         {
-                0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36,
+                0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36,
         };
 
-void KeyExpand(uint8_t round, uint8_t *state) {
-
-    uint8_t w0[4], w1[4], w2[4], w3[4];
-    uint8_t temp[4] = {0, 0, 0, 0},
+void key_expansion(uint8_t round, uint8_t *key) {
+    uint8_t w0[4], w1[4], w2[4], w3[4],
             w4[4] = {0, 0, 0, 0},
             w5[4] = {0, 0, 0, 0},
             w6[4] = {0, 0, 0, 0},
-            w7[4] = {0, 0, 0, 0};
+            w7[4] = {0, 0, 0, 0},
+            temp[4] = {0, 0, 0, 0};
 
     for (size_t i = 0; i < 4; ++i) {
-        w0[i % 4] = state[i];
+        w0[i % 4] = key[i];
     }
     for (size_t i = 4; i < 8; ++i) {
-        w1[i % 4] = state[i];
+        w1[i % 4] = key[i];
     }
     for (size_t i = 8; i < 12; ++i) {
-        w2[i % 4] = state[i];
+        w2[i % 4] = key[i];
     }
     for (size_t i = 12; i < 16; ++i) {
-        w3[i % 4] = state[i];
+        w3[i % 4] = key[i];
     }
 
     // g(w[3])
-    //Print1DArray(w3);
     LeftCircularShift(w3, temp);
-    //Print1DArray(w3);
+
     SubstitutionBytesWord(temp, temp);
-    //Print1DArray(w3);
-    AddingRoundConstant(temp, temp, round);
+
+    AddingRoundConstant(round, temp);
 
     XOR(w0, temp, w4);    // w[4] = w[3] XOR w[0]
     XOR(w1, w4, w5);    // w[5] = w[4] XOR w[1]
     XOR(w2, w5, w6);    // w[6] = w[5] XOR w[2]
     XOR(w3, w6, w7);    // w[7] = w[6] XOR w[3]
 
+//    Print1DArray(w0, 4);
+//    Print1DArray(w1, 4);
+//    Print1DArray(w2, 4);
 //    Print1DArray(w3, 4);
 //    Print1DArray(w4, 4);
 //    Print1DArray(w5, 4);
@@ -216,16 +217,16 @@ void KeyExpand(uint8_t round, uint8_t *state) {
 
     // Merge 4 words
     for (size_t i = 0; i < 4; ++i) {
-        state[i] = w4[i % 4];
+        key[i] = w4[i % 4];
     }
     for (size_t i = 4; i < 8; ++i) {
-        state[i] = w5[i % 4];
+        key[i] = w5[i % 4];
     }
     for (size_t i = 8; i < 12; ++i) {
-        state[i] = w6[i % 4];
+        key[i] = w6[i % 4];
     }
     for (size_t i = 12; i < 16; ++i) {
-        state[i] = w7[i % 4];
+        key[i] = w7[i % 4];
     }
 
     //Debug("Expd:", output, Nb * Nk);
@@ -332,58 +333,37 @@ void MixColumnsNew(state_t *state) {
 }
 
 void MixColumnsLookupTable(state_t *state) {
-    state_t temp;
-    temp[0] = mul_2[(*state)[0]] ^ mul_3[(*state)[1]] ^ (*state)[2] ^ (*state)[3];
-    temp[1] = (*state)[0] ^ mul_2[(*state)[1]] ^ mul_3[(*state)[2]] ^ (*state)[3];
-    temp[2] = (*state)[0] ^ (*state)[1] ^ mul_2[(*state)[2]] ^ mul_3[(*state)[3]];
-    temp[3] = mul_3[(*state)[0]] ^ (*state)[1] ^ (*state)[2] ^ mul_2[(*state)[3]];
+    uint8_t *temp = (uint8_t *) malloc(16);
 
-    temp[4] = mul_2[(*state)[4]] ^ mul_3[(*state)[5]] ^ (*state)[6] ^ (*state)[7];
-    temp[5] = (*state)[4] ^ mul_2[(*state)[5]] ^ mul_3[(*state)[6]] ^ (*state)[7];
-    temp[6] = (*state)[4] ^ (*state)[5] ^ mul_2[(*state)[6]] ^ mul_3[(*state)[7]];
-    temp[7] = mul_3[(*state)[4]] ^ (*state)[5] ^ (*state)[6] ^ mul_2[(*state)[7]];
-
-    temp[8] = mul_2[(*state)[8]] ^ mul_3[(*state)[9]] ^ (*state)[10] ^ (*state)[11];
-    temp[9] = (*state)[8] ^ mul_2[(*state)[9]] ^ mul_3[(*state)[10]] ^ (*state)[11];
-    temp[10] = (*state)[8] ^ (*state)[9] ^ mul_2[(*state)[10]] ^ mul_3[(*state)[11]];
-    temp[11] = mul_3[(*state)[8]] ^ (*state)[9] ^ (*state)[10] ^ mul_2[(*state)[11]];
-
-    temp[12] = mul_2[(*state)[12]] ^ mul_3[(*state)[13]] ^ (*state)[14] ^ (*state)[15];
-    temp[13] = (*state)[12] ^ mul_2[(*state)[13]] ^ mul_3[(*state)[14]] ^ (*state)[15];
-    temp[14] = (*state)[12] ^ (*state)[13] ^ mul_2[(*state)[14]] ^ mul_3[(*state)[15]];
-    temp[15] = mul_3[(*state)[12]] ^ (*state)[13] ^ (*state)[14] ^ mul_2[(*state)[15]];
+    for (int i = 0; i < 4; ++i) {
+        temp[(4*i)+0] = mul_2[(*state)[(4*i)+0]] ^ mul_3[(*state)[(4*i)+1]] ^ (*state)[(4*i)+2] ^ (*state)[(4*i)+3];
+        temp[(4*i)+1] = (*state)[(4*i)+0] ^ mul_2[(*state)[(4*i)+1]] ^ mul_3[(*state)[(4*i)+2]] ^ (*state)[(4*i)+3];
+        temp[(4*i)+2] = (*state)[(4*i)+0] ^ (*state)[(4*i)+1] ^ mul_2[(*state)[(4*i)+2]] ^ mul_3[(*state)[(4*i)+3]];
+        temp[(4*i)+3] = mul_3[(*state)[(4*i)+0]] ^ (*state)[(4*i)+1] ^ (*state)[(4*i)+2] ^ mul_2[(*state)[(4*i)+3]];
+    }
 
     for (int i = 0; i < Nb * Nk; ++i) {
         (*state)[i] = temp[i];
     }
+
+    free(temp);
 }
 
 void MixRColumnsLookupTable(state_t *state) {
-    state_t temp;
+    uint8_t *temp = (uint8_t *) malloc(16);
 
-    temp[0] = mul_14[(*state)[0]] ^ mul_11[(*state)[1]] ^ mul_13[(*state)[2]] ^ mul_9[(*state)[3]];
-    temp[1] = mul_9[(*state)[0]] ^ mul_14[(*state)[1]] ^ mul_11[(*state)[2]] ^ mul_13[(*state)[3]];
-    temp[2] = mul_13[(*state)[0]] ^ mul_9[(*state)[1]] ^ mul_14[(*state)[2]] ^ mul_11[(*state)[3]];
-    temp[3] = mul_11[(*state)[0]] ^ mul_13[(*state)[1]] ^ mul_9[(*state)[2]] ^ mul_14[(*state)[3]];
-
-    temp[4] = mul_14[(*state)[4]] ^ mul_11[(*state)[5]] ^ mul_13[(*state)[6]] ^ mul_9[(*state)[7]];
-    temp[5] = mul_9[(*state)[4]] ^ mul_14[(*state)[5]] ^ mul_11[(*state)[6]] ^ mul_13[(*state)[7]];
-    temp[6] = mul_13[(*state)[4]] ^ mul_9[(*state)[5]] ^ mul_14[(*state)[6]] ^ mul_11[(*state)[7]];
-    temp[7] = mul_11[(*state)[4]] ^ mul_13[(*state)[5]] ^ mul_9[(*state)[6]] ^ mul_14[(*state)[7]];
-
-    temp[8] = mul_14[(*state)[8]] ^ mul_11[(*state)[9]] ^ mul_13[(*state)[10]] ^ mul_9[(*state)[11]];
-    temp[9] = mul_9[(*state)[8]] ^ mul_14[(*state)[9]] ^ mul_11[(*state)[10]] ^ mul_13[(*state)[11]];
-    temp[10] = mul_13[(*state)[8]] ^ mul_9[(*state)[9]] ^ mul_14[(*state)[10]] ^ mul_11[(*state)[11]];
-    temp[11] = mul_11[(*state)[8]] ^ mul_13[(*state)[9]] ^ mul_9[(*state)[10]] ^ mul_14[(*state)[11]];
-
-    temp[12] = mul_14[(*state)[12]] ^ mul_11[(*state)[13]] ^ mul_13[(*state)[14]] ^ mul_9[(*state)[15]];
-    temp[13] = mul_9[(*state)[12]] ^ mul_14[(*state)[13]] ^ mul_11[(*state)[14]] ^ mul_13[(*state)[15]];
-    temp[14] = mul_13[(*state)[12]] ^ mul_9[(*state)[13]] ^ mul_14[(*state)[14]] ^ mul_11[(*state)[15]];
-    temp[15] = mul_11[(*state)[12]] ^ mul_13[(*state)[13]] ^ mul_9[(*state)[14]] ^ mul_14[(*state)[15]];
+    for (int i = 0; i < 4; ++i) {
+        temp[(4*i)+0] = mul_14[(*state)[(4*i)+0]] ^ mul_11[(*state)[(4*i)+1]] ^ mul_13[(*state)[(4*i)+2]] ^ mul_9[(*state)[(4*i)+3]];
+        temp[(4*i)+1] = mul_9[(*state)[(4*i)+0]] ^ mul_14[(*state)[(4*i)+1]] ^ mul_11[(*state)[(4*i)+2]] ^ mul_13[(*state)[(4*i)+3]];
+        temp[(4*i)+2] = mul_13[(*state)[(4*i)+0]] ^ mul_9[(*state)[(4*i)+1]] ^ mul_14[(*state)[(4*i)+2]] ^ mul_11[(*state)[(4*i)+3]];
+        temp[(4*i)+3] = mul_11[(*state)[(4*i)+0]] ^ mul_13[(*state)[(4*i)+1]] ^ mul_9[(*state)[(4*i)+2]] ^ mul_14[(*state)[(4*i)+3]];
+    }
 
     for (int i = 0; i < Nb * Nk; ++i) {
         (*state)[i] = temp[i];
     }
+
+    free(temp);
 }
 
 void MixCol(state_t *state) {
@@ -438,10 +418,10 @@ void XOR(const uint8_t *arr1, const uint8_t *arr2, uint8_t *result) {
     }
 }
 
-void AddingRoundConstant(const uint8_t *key, uint8_t *output, unsigned int round) {
+void AddingRoundConstant(unsigned int round, uint8_t *key) {
     uint8_t rconarr[4] = {rcon[round], 0x00, 0x00, 0x00};
     for (size_t i = 0; i < Nk; ++i) {
-        output[i] = key[i] ^ rconarr[i];
+        key[i] = key[i] ^ rconarr[i];
     }
 }
 
@@ -484,13 +464,13 @@ void Cipher(state_t *state, uint8_t *key) {
         SubstitutionBytes(state);
         ShiftRows(state);
         MixColumnsNew(state);
-        KeyExpand(round, key);
+        key_expansion(round, key);
         AddRoundKey(state, key);
     }
 
     SubstitutionBytes(state);
     ShiftRows(state);
-    KeyExpand(round, key);
+    key_expansion(round, key);
     AddRoundKey(state, key);
 }
 

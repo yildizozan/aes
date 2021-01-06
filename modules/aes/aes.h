@@ -96,6 +96,7 @@ void MixCol(state_t *state);
 /**
  *
  * @param key
+ * @param output
  */
 void LeftCircularShift(const uint8_t *key, uint8_t *output);
 
@@ -111,10 +112,10 @@ void XOR(const uint8_t *arr1, const uint8_t *arr2, uint8_t *result);
 /**
  *
  * @param key
- * @param output
+ * @param state
  * @param round
  */
-void AddingRoundConstant(const uint8_t *key, uint8_t *output, unsigned int round);
+void AddingRoundConstant(unsigned int round, uint8_t *key);
 
 /**
  *
@@ -154,9 +155,9 @@ void Debug(const char *msg, const uint8_t *data, const uint8_t size);
  *   -------------  --------------  --------------  --------------
  * [ EF	4D	F9	3C	AA	33	02	9F	FB	85	7F	A8	43	45	50	51 ] output
  *
- * @param state
+ * @param key
  */
-void KeyExpand(uint8_t round, uint8_t *state);
+void key_expansion(uint8_t round, uint8_t *key);
 
 /**
  *
