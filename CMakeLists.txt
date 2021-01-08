@@ -4,7 +4,7 @@ project(aes)
 #set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_subdirectory(aesctl)
-add_subdirectory(md5)
+add_subdirectory(verifyer)
 add_subdirectory(driver)
 
 add_subdirectory(modules)
