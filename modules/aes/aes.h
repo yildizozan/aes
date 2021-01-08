@@ -120,7 +120,7 @@ void RightCircularShift(const uint8_t *key, uint8_t *output);
  * @param arr2
  * @param result
  */
-void XOR(const uint8_t *arr1, const uint8_t *arr2, uint8_t *result);
+void XOR(uint8_t *arr1, uint8_t *arr2, uint8_t *result, size_t size);
 
 /**
  *

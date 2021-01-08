@@ -506,8 +506,8 @@ void RightCircularShift(uint8_t *key, uint8_t *output) {
     output[3] = temp;
 }
 
-void XOR(const uint8_t *arr1, const uint8_t *arr2, uint8_t *result) {
-    for (size_t i = 0; i < Nk; ++i) {
+void XOR(uint8_t *arr1, uint8_t *arr2, uint8_t *result, size_t size) {
+    for (size_t i = 0; i < size; ++i) {
         //printf("%02X ^ %02X = %02X\n", arr1[i], arr2[i], arr1[i] ^ arr2[i]);
         result[i] = arr1[i] ^ arr2[i];
     }
