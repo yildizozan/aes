@@ -16,8 +16,17 @@ DEFINE_string(in, "", "Message or cipher data");
 DEFINE_string(out, "out.txt", "Output file");
 DEFINE_string(message, "", "Message to encrypt");
 DEFINE_string(key, "", "Encryption key");
-DEFINE_bool(e, false, "AES encryption");
-DEFINE_bool(d, false, "AES decryption");
+
+// Encryption or Decryption
+DEFINE_bool(encrypt, false, "AES encryption");
+DEFINE_bool(decrypt, false, "AES decryption");
+
+// Modes
+DEFINE_bool(ecb, false, "Electronic Cook Book");
+DEFINE_bool(cbc, false, "Cipher-Block Crypto it will need to IV");
+DEFINE_bool(ofb, false, "Cipher-Block Crypto it will need to IV");
+
+DEFINE_string(iv, "", "Initialization Vector (16chars)");
 
 /**
  *
@@ -78,7 +87,7 @@ int main(int argc, char *argv[]) {
 
     std::ifstream infile(FLAGS_in, std::ifstream::binary);
     if (!infile.is_open()) {
-        std::cout << "infile not opened!"  << std::endl;
+        std::cout << "infile not opened!" << std::endl;
         std::cerr << "Error: " << strerror(errno);
         exit(1);
     }
@@ -89,21 +98,7 @@ int main(int argc, char *argv[]) {
         exit(2);
     }
 
-/*
-    uint8_t key[Nb * Nk] = {'T', 'h', 'a', 't', 's', ' ', 'm', 'y', ' ', 'K', 'u', 'n', 'g', ' ', 'F', 'u'};
-    state_t state = {'T', 'w', 'o', ' ', 'O', 'n', 'e', ' ', 'N', 'i', 'n', 'e', ' ', 'T', 'w', 'o'};
-
-    if (FLAGS_e) {
-        Encryption(&state, key);
-    }
-    if (FLAGS_d) {
-        Decryption(&state, key);
-    }
-
-    for (unsigned i = 0; i < Nb * Nk; ++i) {
-        fprintf(stdout, "%c", state[i]);
-    }
-*/
+    uint8_t iv[Nb * Nk];
     uint8_t key[Nb * Nk];
     for (int i = 0; i < Nb * Nk; ++i) {
         key[i] = FLAGS_key[i];
@@ -131,7 +126,19 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // IV string to unit8_t *arr
+    if (!FLAGS_iv.empty()) {
+        for (int i = 0; i < Nb * Nk; ++i) {
+            iv[i] = FLAGS_iv[i];
+        }
+    }
 
+    // This variable needs to other modes
+    // For example CBC
+    state_t last_state = {0};
+
+    // Core loop
+    // All block starting to here for encrypt
     for (unsigned n = 0; n < blocks.size(); ++n) {
         std::string block = blocks[n];
         state_t state = {0};
@@ -143,17 +150,67 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        if (FLAGS_e) {
-            Encryption(&state, key);
+        if (FLAGS_encrypt) {
+            if (FLAGS_ecb) {
+                Encryption(&state, key);
+            }
+            if (FLAGS_cbc) {
+                if (n == 0) {
+                    for (int i = 0; i < Nb * Nk; ++i) {
+                        state[i] = state[i] ^ iv[i];
+                    }
+                } else {
+                    for (int i = 0; i < Nb * Nk; ++i) {
+                        state[i] ^= last_state[i];
+                    }
+                }
+                Encryption(&state, key);
+                for (int i = 0; i < Nb * Nk; ++i) {
+                    last_state[i] = state[i];
+                }
+            }
+            if (FLAGS_ofb) {
+                if (n == 0) {
+                    Encryption(&iv, key);
+                    for (int i = 0; i < Nb * Nk; ++i) {
+                        last_state[i] = iv[i];
+                    }
+                } else {
+                    Encryption(&state, key);
+                }
+                for (int i = 0; i < Nb * Nk; ++i) {
+                    state[i] ^= last_state[i];
+                }
+            }
         }
-        if (FLAGS_d) {
-            Decryption(&state, key);
+        if (FLAGS_decrypt) {
+            if (FLAGS_ecb) {
+                Decryption(&state, key);
+            }
+            if (FLAGS_cbc) {
+                for (int i = 0; i < Nb * Nk; ++i) {
+                    last_state[i] = state[i];
+                }
+                Decryption(&state, key);
+                if (n == 0) {
+                    for (int i = 0; i < Nb * Nk; ++i) {
+                        state[i] = state[i] ^ iv[i];
+                    }
+                } else {
+                    for (int i = 0; i < Nb * Nk; ++i) {
+                        state[i] = state[i] ^ last_state[i];
+                    }
+                }
+            }
+            if (FLAGS_ofb) {}
         }
 
-//        char *result = hex_to_base64((char *) state, Nb * Nk);
+        // Write result file
         for (unsigned i = 0; i < Nb * Nk; ++i) {
-            outfile << state[i];
-            fprintf(stdout, "%02X ", state[i]);
+            if (state[i] != 0) {
+                outfile << state[i];
+                fprintf(stdout, "%02X", state[i]);
+            }
         }
     }
 
