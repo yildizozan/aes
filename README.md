@@ -67,3 +67,13 @@ aesctl --encrypt --ofb --key "Thats my Kung Fu" --iv abcdefghijklmnop --in plain
 ```shell
 aesctl --decrypt --ofb --key "Thats my Kung Fu" --iv abcdefghijklmnop --in out.txt --out decrypted.txt 
 ```
+
+## verifyer
+
+```shell
+verifyer --key 0123456789ABCDEF --file plain.txt
+```
+
+```shell
+verifyer --key 0123456789ABCDEF --file plain.txt --verify
+```
