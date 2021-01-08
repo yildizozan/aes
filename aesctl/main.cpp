@@ -1,57 +1,166 @@
+#include <iostream>
 #include <cstdio>
-#include <cstdlib>
-#include <ctime>
+#include <bits/stdc++.h>
+#include <unistd.h>
 
 #include <aes.h>
+
+#define GFLAGS_STRIP_INTERNAL_FLAG_HELP 1
+#define STRIP_FLAG_HELP 1
+
 #include <gflags/gflags.h>
 
-DEFINE_bool(big_menu, true, "Include 'advanced' options in the menu listing");
-DEFINE_string(languages, "english,french,german","comma-separated list of languages to offer in the 'lang' menu");
+DEFINE_bool(verbose, false, "Display program name before message");
+
+DEFINE_string(in, "", "Message or cipher data");
+DEFINE_string(out, "out.txt", "Output file");
+DEFINE_string(message, "", "Message to encrypt");
+DEFINE_string(key, "", "Encryption key");
+DEFINE_bool(e, false, "AES encryption");
+DEFINE_bool(d, false, "AES decryption");
+
+/**
+ *
+ * @param flagname
+ * @param value
+ * @return
+ */
+static bool IsNonEmptyMessage(const char *flagname, const std::string &value) {
+    return value[0] != '\0';
+}
+
+/**
+ *
+ * @param flagname
+ * @param value
+ * @return
+ */
+static bool KeyValidator(const char *flagname, const std::string &value) {
+    return value[0] != '\0' && value.size() == 16;
+}
+
+//DEFINE_validator(in, &IsNonEmptyMessage);
+//DEFINE_validator(message, &IsNonEmptyMessage);
+
+DEFINE_validator(key, &KeyValidator);
+
+/**
+ * Helper
+ * @link https://stackoverflow.com/a/25456330
+ * @param hex
+ * @param size
+ * @return
+ */
+char *hex_to_base64(char *hex, int size) {
+    int size64 = (size * 2) / 3.0;
+    size64 += 1;
+    char *base64 = (char *) calloc(size64, 1);
+    size64 -= 1;
+    for (int i = size - 1; i >= 0; i -= 3, size64 -= 2) {
+        base64[size64] |= hex[i];
+        if (i > 0) {
+            base64[size64] |= ((hex[i - 1] << 4) & 0x3F); //0x3F is 00111111
+            base64[size64 - 1] |= (hex[i - 1] >> 2);
+        }
+        if (i > 1) {
+            base64[size64 - 1] |= ((hex[i - 2] << 2));
+        }
+    }
+    return base64;
+}
 
 int main(int argc, char *argv[]) {
-//    state_t state;
-/*
-    // This is major-column order matrix
-    state_t state = {0x63, 0x2F, 0xAF, 0xA2,
-                     0xEB, 0x93, 0xC7, 0x20,
-                     0x9F, 0x92, 0xAB, 0xCB,
-                     0xA0, 0xC0, 0x30, 0x2B};
-*/
+    gflags::SetUsageMessage("Hello, World! Welcome AES Cipher");
+    gflags::SetVersionString("0.1.0");
+    gflags::ParseCommandLineFlags(&argc, &argv, true);
+    if (FLAGS_verbose) std::cout << gflags::ProgramInvocationShortName() << ": ";
+    gflags::ShutDownCommandLineFlags();
 
-    state_t state = {0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F, 0x70};
-//    state_t state = {0x32, 0x43, 0xF6, 0xA8, 0x88, 0x5A, 0x30, 0x8D, 0x31, 0x31, 0x98, 0xA2, 0xE0, 0x37, 0x07, 0x34};
-
-    printf("Hello, World!\n");
-
-    //char *plaintext = "This string is secret!";
-    uint8_t plaintext[] = "abcdefghijklmnop";
-
-    // Generate Key
-    uint8_t key[] = {0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F, 0x70};
-//    uint8_t key[] = {0x54, 0x68, 0x61, 0x74, 0x73, 0x20, 0x6D, 0x79, 0x20, 0x4B, 0x75, 0x6e, 0x67, 0x20, 0x46, 0x75};
-//    uint8_t key[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
-//    uint8_t key[] = {0x2B, 0x7E, 0x15 , 0x16, 0x28, 0xAE, 0xD2, 0xA6, 0xAB, 0xF7, 0x15, 0x88, 0x09, 0xCF, 0x4F, 0x3C};
-
-    //srand(time(NULL));
-
-    for (int i = 0; i < Nb * Nk; i += 4) {
-//        state[i] = plaintext[i];
-
-/*
-            uint8_t index = (1 << (sizeof(c) * 8 - 1));
-            for (; index; index >>= 1)
-                printf("%d", (c & index) != 0);
-            printf(" - %c\n", c);
-*/
+    std::ifstream infile(FLAGS_in, std::ifstream::binary);
+    if (!infile.is_open()) {
+        std::cout << "infile not opened!"  << std::endl;
+        std::cerr << "Error: " << strerror(errno);
+        exit(1);
+    }
+    std::ofstream outfile(FLAGS_out, std::ofstream::binary);
+    if (!outfile.is_open()) {
+        std::cout << "outfile not opened!" << std::endl;
+        std::cerr << "Error: " << strerror(errno);
+        exit(2);
     }
 
-    Debug("Text:", state, Nb * Nk);
-    Debug("Key:", key, Nb * Nk);
+/*
+    uint8_t key[Nb * Nk] = {'T', 'h', 'a', 't', 's', ' ', 'm', 'y', ' ', 'K', 'u', 'n', 'g', ' ', 'F', 'u'};
+    state_t state = {'T', 'w', 'o', ' ', 'O', 'n', 'e', ' ', 'N', 'i', 'n', 'e', ' ', 'T', 'w', 'o'};
 
-    Cipher(&state, key);
+    if (FLAGS_e) {
+        Encryption(&state, key);
+    }
+    if (FLAGS_d) {
+        Decryption(&state, key);
+    }
 
-    // Result!
-    Debug("Rslt:", state, Nb * Nk);
+    for (unsigned i = 0; i < Nb * Nk; ++i) {
+        fprintf(stdout, "%c", state[i]);
+    }
+*/
+    uint8_t key[Nb * Nk];
+    for (int i = 0; i < Nb * Nk; ++i) {
+        key[i] = FLAGS_key[i];
+    }
+
+    // Global nessage
+    std::string message;
+
+    int len = FLAGS_message.length();
+
+    // Message chunk 128-bit
+    std::vector<std::string> blocks;
+
+    if (!FLAGS_in.empty()) {
+        char c = 0;
+        while (infile.get(c))
+            message += (uint8_t) c;
+        for (unsigned i = 0; i < message.length(); i += Nb * Nk) {
+            blocks.push_back(message.substr(i, Nb * Nk));
+        }
+    }
+    if (!FLAGS_message.empty()) {
+        for (unsigned i = 0; i < len; i += Nb * Nk) {
+            blocks.push_back(FLAGS_message.substr(i, Nb * Nk));
+        }
+    }
+
+
+    for (unsigned n = 0; n < blocks.size(); ++n) {
+        std::string block = blocks[n];
+        state_t state = {0};
+        for (int j = 0; j < Nb * Nk; ++j) {
+            if (j < block.length()) {
+                state[j] = block[j];
+            } else {
+                state[j] = 0; // padding
+            }
+        }
+
+        if (FLAGS_e) {
+            Encryption(&state, key);
+        }
+        if (FLAGS_d) {
+            Decryption(&state, key);
+        }
+
+//        char *result = hex_to_base64((char *) state, Nb * Nk);
+        for (unsigned i = 0; i < Nb * Nk; ++i) {
+            outfile << state[i];
+            fprintf(stdout, "%02X ", state[i]);
+        }
+    }
+
+    printf("\n");
+
+    outfile.close();
+    infile.close();
 
     return 0;
 }
