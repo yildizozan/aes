@@ -173,63 +173,83 @@ unsigned char rcon[11] =
                 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36,
         };
 
-void key_expansion(uint8_t round, uint8_t *key) {
-    uint8_t w0[4], w1[4], w2[4], w3[4],
-            w4[4] = {0, 0, 0, 0},
-            w5[4] = {0, 0, 0, 0},
-            w6[4] = {0, 0, 0, 0},
-            w7[4] = {0, 0, 0, 0},
-            temp[4] = {0, 0, 0, 0};
 
-    for (size_t i = 0; i < 4; ++i) {
-        w0[i % 4] = key[i];
-    }
-    for (size_t i = 4; i < 8; ++i) {
-        w1[i % 4] = key[i];
-    }
-    for (size_t i = 8; i < 12; ++i) {
-        w2[i % 4] = key[i];
-    }
-    for (size_t i = 12; i < 16; ++i) {
-        w3[i % 4] = key[i];
-    }
+/**
+ * [0 1 2 3 4 5 6 7 8 9 A B C D E F]
+ * CONVERT
+ * 0 5 8 C -> X Y
+ * 1 6 9 D -> X Y
+ * 2 7 A E -> X Y
+ * 3 8 B F -> X Y
+ * @param round
+ * @param key
+ */
+void key_expansion(const uint8_t *key, uint8_t w[4][44]) {
 
-    // g(w[3])
-    LeftCircularShift(w3, temp);
-
-    SubstitutionBytesWord(temp, temp);
-
-    AddingRoundConstant(round, temp);
-
-    XOR(w0, temp, w4);    // w[4] = w[3] XOR w[0]
-    XOR(w1, w4, w5);    // w[5] = w[4] XOR w[1]
-    XOR(w2, w5, w6);    // w[6] = w[5] XOR w[2]
-    XOR(w3, w6, w7);    // w[7] = w[6] XOR w[3]
-
-//    Print1DArray(w0, 4);
-//    Print1DArray(w1, 4);
-//    Print1DArray(w2, 4);
-//    Print1DArray(w3, 4);
-//    Print1DArray(w4, 4);
-//    Print1DArray(w5, 4);
-//    Print1DArray(w6, 4);
-//    Print1DArray(w7, 4);
-
-    // Merge 4 words
-    for (size_t i = 0; i < 4; ++i) {
-        key[i] = w4[i % 4];
-    }
-    for (size_t i = 4; i < 8; ++i) {
-        key[i] = w5[i % 4];
-    }
-    for (size_t i = 8; i < 12; ++i) {
-        key[i] = w6[i % 4];
-    }
-    for (size_t i = 12; i < 16; ++i) {
-        key[i] = w7[i % 4];
+    // Convert to matrix
+    size_t index = 0;
+    for (int col = 0; col < 4; ++col) {
+        for (int row = 0; row < 4; ++row) {
+            w[row][col] = key[index++];
+        }
     }
 
-    //Debug("Expd:", output, Nb * Nk);
+#ifdef DEBUG
+    printf("key_expansion before\n");
+
+    for (int row = 0; row < 4; ++row) {
+        for (int col = 0; col < 44; ++col) {
+            printf("0x%02X, ", w[row][col]);
+        }
+        printf("\n");
+    }
+#endif
+
+    uint8_t round = 0;
+    for (int col = 4; col < Nb * (Nr + 1); col += 4) {
+        uint8_t g[4] = {w[0][col - 1], w[1][col - 1], w[2][col - 1], w[3][col - 1]};
+        LeftCircularShift(g);
+        SubstitutionBytesWord(g);
+//        AddingRoundConstant(round, g);
+
+        // Prepare roundkey
+        uint8_t rconarr[4];
+        if (col % 4 == 0) {
+            rconarr[0] = rcon[round++];
+            rconarr[1] = 0;
+            rconarr[2] = 0;
+            rconarr[3] = 0;
+        }
+        // Wi = Wi-4 ^ g(Wi-1) ^ rcon
+        for (int row = 0; row < 4; ++row) {
+            w[row][col + 0] = w[row][col - 4] ^ g[row] ^ rconarr[row];
+            w[row][col + 1] = w[row][col] ^ w[row][col - 3];
+            w[row][col + 2] = w[row][col + 1] ^ w[row][col - 2];
+            w[row][col + 3] = w[row][col + 2] ^ w[row][col - 1];
+        }
+#ifdef DEBUG
+        printf("key_expansion step\n");
+
+        for (int row = 0; row < 4; ++row) {
+            for (int col = 0; col < 44; ++col) {
+                printf("0x%02X, ", w[row][col]);
+            }
+            printf("\n");
+        }
+#endif
+    }
+
+#ifdef DEBUG
+        printf("offset: %d %x\n", offset, offset);
+
+        for (int row = 0; row < 4; ++row) {
+            for (int col = 0; col < 44; ++col) {
+                printf("0x%02X, ", w[row][col]);
+            }
+            printf("\n");
+        }
+#endif
+
 }
 
 void AddRoundKey(state_t *state, const uint8_t subKey[]) {
@@ -239,24 +259,34 @@ void AddRoundKey(state_t *state, const uint8_t subKey[]) {
     }
 }
 
+/**
+ * 0xA7 -> A(10) row, 7 column
+ * @param state
+ */
 void SubstitutionBytes(state_t *state) {
     //printf("Subs:\t");
     for (uint8_t i = 0; i < Nb * Nk; ++i) {
         uint8_t c = (*state)[i];
-        uint8_t msb4 = (c >> 4);
-        uint8_t lsb4 = c & 0x0F;
+        uint8_t msb4 = (c >> 4); /* Attention */
+        uint8_t lsb4 = c & 0x0F; /* Attention */
         (*state)[i] = sbox[c];
         //printf("%02X\t", sbox[msb4][lsb4]);
     }
     //printf("\n");
 }
 
-void SubstitutionBytesWord(const uint8_t *values, uint8_t *output) {
+void InverseSubstitutionBytes(state_t *state) {
+    for (uint8_t i = 0; i < Nb * Nk; ++i) {
+        (*state)[i] = rsbox[(*state)[i]];
+    }
+}
+
+void SubstitutionBytesWord(uint8_t *state) {
     for (size_t i = 0; i < Nk; ++i) {
-        uint8_t c = values[i];
+        uint8_t c = state[i];
         uint8_t msb4 = (c >> 4);
         uint8_t lsb4 = c & 0xf;
-        output[i] = sbox[c];
+        state[i] = sbox[c];
     }
 }
 
@@ -305,6 +335,50 @@ void ShiftRows(state_t *state) {
     //PrintState(state);
 }
 
+void InversveShiftRows(state_t *state) {
+    uint8_t temp = 0;
+    uint8_t new_state[Nb][Nk] = {0};
+
+    size_t index = 0;
+    for (int col = 0; col < Nb; ++col) {
+        for (int row = 0; row < Nk; ++row) {
+            new_state[row][col] = (*state)[index++];
+        }
+    }
+
+    // Rotate first row 1 columns to left
+    // [0][1][2][3] -> [3][0][1][2]
+    temp = new_state[1][3];
+    new_state[1][3] = new_state[1][2];
+    new_state[1][2] = new_state[1][1];
+    new_state[1][1] = new_state[1][0];
+    new_state[1][0] = temp;
+
+    // Rotate second row 2 columns to left
+    // [0][1][2][3] -> [2][3][0][1]
+    temp = new_state[2][3];
+    new_state[2][3] = new_state[2][1];
+    new_state[2][1] = temp;
+    temp = new_state[2][2];
+    new_state[2][2] = new_state[2][0];
+    new_state[2][0] = temp;
+
+    // Rotate third row 3 columns to left
+    // [0][1][2][3] -> [1][2][3][0]
+    temp = new_state[3][0];
+    new_state[3][0] = new_state[3][1];
+    new_state[3][1] = new_state[3][2];
+    new_state[3][2] = new_state[3][3];
+    new_state[3][3] = temp;
+
+    index = 0;
+    for (int col = 0; col < Nb; ++col) {
+        for (int row = 0; row < Nk; ++row) {
+            (*state)[index++] = new_state[row][col];
+        }
+    }
+}
+
 void MixColumns(state_t *state) {
     for (int i = 0; i < Nb * Nk; i += 4) {
         MixCol(&state[i]);
@@ -336,10 +410,14 @@ void MixColumnsLookupTable(state_t *state) {
     uint8_t *temp = (uint8_t *) malloc(16);
 
     for (int i = 0; i < 4; ++i) {
-        temp[(4*i)+0] = mul_2[(*state)[(4*i)+0]] ^ mul_3[(*state)[(4*i)+1]] ^ (*state)[(4*i)+2] ^ (*state)[(4*i)+3];
-        temp[(4*i)+1] = (*state)[(4*i)+0] ^ mul_2[(*state)[(4*i)+1]] ^ mul_3[(*state)[(4*i)+2]] ^ (*state)[(4*i)+3];
-        temp[(4*i)+2] = (*state)[(4*i)+0] ^ (*state)[(4*i)+1] ^ mul_2[(*state)[(4*i)+2]] ^ mul_3[(*state)[(4*i)+3]];
-        temp[(4*i)+3] = mul_3[(*state)[(4*i)+0]] ^ (*state)[(4*i)+1] ^ (*state)[(4*i)+2] ^ mul_2[(*state)[(4*i)+3]];
+        temp[(4 * i) + 0] = mul_2[(*state)[(4 * i) + 0]] ^ mul_3[(*state)[(4 * i) + 1]] ^ (*state)[(4 * i) + 2] ^
+                            (*state)[(4 * i) + 3];
+        temp[(4 * i) + 1] = (*state)[(4 * i) + 0] ^ mul_2[(*state)[(4 * i) + 1]] ^ mul_3[(*state)[(4 * i) + 2]] ^
+                            (*state)[(4 * i) + 3];
+        temp[(4 * i) + 2] = (*state)[(4 * i) + 0] ^ (*state)[(4 * i) + 1] ^ mul_2[(*state)[(4 * i) + 2]] ^
+                            mul_3[(*state)[(4 * i) + 3]];
+        temp[(4 * i) + 3] = mul_3[(*state)[(4 * i) + 0]] ^ (*state)[(4 * i) + 1] ^ (*state)[(4 * i) + 2] ^
+                            mul_2[(*state)[(4 * i) + 3]];
     }
 
     for (int i = 0; i < Nb * Nk; ++i) {
@@ -349,14 +427,22 @@ void MixColumnsLookupTable(state_t *state) {
     free(temp);
 }
 
-void MixRColumnsLookupTable(state_t *state) {
+void InverseMixColumnsLookupTable(state_t *state) {
     uint8_t *temp = (uint8_t *) malloc(16);
 
     for (int i = 0; i < 4; ++i) {
-        temp[(4*i)+0] = mul_14[(*state)[(4*i)+0]] ^ mul_11[(*state)[(4*i)+1]] ^ mul_13[(*state)[(4*i)+2]] ^ mul_9[(*state)[(4*i)+3]];
-        temp[(4*i)+1] = mul_9[(*state)[(4*i)+0]] ^ mul_14[(*state)[(4*i)+1]] ^ mul_11[(*state)[(4*i)+2]] ^ mul_13[(*state)[(4*i)+3]];
-        temp[(4*i)+2] = mul_13[(*state)[(4*i)+0]] ^ mul_9[(*state)[(4*i)+1]] ^ mul_14[(*state)[(4*i)+2]] ^ mul_11[(*state)[(4*i)+3]];
-        temp[(4*i)+3] = mul_11[(*state)[(4*i)+0]] ^ mul_13[(*state)[(4*i)+1]] ^ mul_9[(*state)[(4*i)+2]] ^ mul_14[(*state)[(4*i)+3]];
+        temp[(4 * i) + 0] =
+                mul_14[(*state)[(4 * i) + 0]] ^ mul_11[(*state)[(4 * i) + 1]] ^ mul_13[(*state)[(4 * i) + 2]] ^
+                mul_9[(*state)[(4 * i) + 3]];
+        temp[(4 * i) + 1] =
+                mul_9[(*state)[(4 * i) + 0]] ^ mul_14[(*state)[(4 * i) + 1]] ^ mul_11[(*state)[(4 * i) + 2]] ^
+                mul_13[(*state)[(4 * i) + 3]];
+        temp[(4 * i) + 2] =
+                mul_13[(*state)[(4 * i) + 0]] ^ mul_9[(*state)[(4 * i) + 1]] ^ mul_14[(*state)[(4 * i) + 2]] ^
+                mul_11[(*state)[(4 * i) + 3]];
+        temp[(4 * i) + 3] =
+                mul_11[(*state)[(4 * i) + 0]] ^ mul_13[(*state)[(4 * i) + 1]] ^ mul_9[(*state)[(4 * i) + 2]] ^
+                mul_14[(*state)[(4 * i) + 3]];
     }
 
     for (int i = 0; i < Nb * Nk; ++i) {
@@ -402,7 +488,16 @@ void MixCol(state_t *state) {
     (*state)[3] = d;
 }
 
-void LeftCircularShift(const uint8_t *key, uint8_t *output) {
+void LeftCircularShift(uint8_t *key) {
+    uint8_t temp;
+    temp = key[0];
+    key[0] = key[1];
+    key[1] = key[2];
+    key[2] = key[3];
+    key[3] = temp;
+}
+
+void RightCircularShift(uint8_t *key, uint8_t *output) {
     uint8_t temp;
     temp = key[0];
     output[0] = key[1];
@@ -419,7 +514,7 @@ void XOR(const uint8_t *arr1, const uint8_t *arr2, uint8_t *result) {
 }
 
 void AddingRoundConstant(unsigned int round, uint8_t *key) {
-    uint8_t rconarr[4] = {rcon[round], 0x00, 0x00, 0x00};
+    uint8_t rconarr[4] = {rcon[round], 0, 0, 0};
     for (size_t i = 0; i < Nk; ++i) {
         key[i] = key[i] ^ rconarr[i];
     }
@@ -427,6 +522,7 @@ void AddingRoundConstant(unsigned int round, uint8_t *key) {
 
 void Print1DArray(const uint8_t *word, const uint8_t size) {
     for (size_t i = 0; i < size; ++i) {
+//        printf("0x%02X, ", word[i]);
         printf("%02X\t", word[i]);
     }
     printf("\n");
@@ -445,32 +541,84 @@ void Debug(const char *msg, const uint8_t *data, const uint8_t size) {
 }
 
 void PrintState(const char *msg, state_t *state) {
-    printf("%s\t", msg);
-    for (int row = 0; row < Nb; ++row) {
-        for (int col = 0; col < Nk; ++col) {
-            printf("%02X\t", (*state)[row]);
+    printf("%s\n", msg);
+    size_t index = 0, index_expected = 0;
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            printf("%02X\t", (*state)[index++]);
         }
-        //printf("\n");
+        printf("\n");
     }
-    printf("\n");
 }
 
-void Cipher(state_t *state, uint8_t *key) {
+void Encryption(state_t *state, uint8_t *key) {
     uint8_t round = 0;
+    uint8_t w[Nb][Nk * (Nr + 1)] = {0};
 
-    AddRoundKey(state, key);
+    // Prepare subkey table
+    key_expansion(key, w);
 
-    for (; round < Nr - 1; ++round) {
+    uint8_t subkey[16] = {0};
+    get_round_key(round, w, subkey);
+    AddRoundKey(state, subkey);
+
+    while (round < Nr - 1) {
         SubstitutionBytes(state);
         ShiftRows(state);
         MixColumnsNew(state);
-        key_expansion(round, key);
-        AddRoundKey(state, key);
+
+        // Get subkey from table
+        // Major-column to 1D array
+        get_round_key(++round, w, subkey);
+        AddRoundKey(state, subkey);
     }
 
     SubstitutionBytes(state);
     ShiftRows(state);
-    key_expansion(round, key);
-    AddRoundKey(state, key);
+
+    get_round_key(++round, w, subkey);
+    AddRoundKey(state, subkey);
 }
 
+void Decryption(state_t *state, uint8_t *key) {
+    uint8_t round = 10;
+    uint8_t w[Nb][Nk * (Nr + 1)] = {0};
+
+    // Prepare subkey table
+    key_expansion(key, w);
+
+    uint8_t subkey[16] = {0};
+    get_round_key(round, w, subkey);
+    AddRoundKey(state, subkey);
+
+    while (1 < round) {
+        InversveShiftRows(state);
+        InverseSubstitutionBytes(state);
+
+        // Get subkey from table
+        // Major-column to 1D array
+        get_round_key(--round, w, subkey);
+        AddRoundKey(state, subkey);
+
+        InverseMixColumnsLookupTable(state);
+
+    }
+
+
+    InversveShiftRows(state);
+    InverseSubstitutionBytes(state);
+
+    // Get subkey from table
+    // Major-column to 1D array
+    get_round_key(--round, w, subkey);
+    AddRoundKey(state, subkey);
+}
+
+void get_round_key(size_t round, uint8_t w[4][44], uint8_t key[16]) {
+    size_t index = 0;
+    for (int col = (round * 4); col < (round * 4) + 4; ++col) {
+        for (int row = 0; row < 4; ++row) {
+            key[index++] = w[row][col];
+        }
+    }
+}

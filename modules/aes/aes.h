@@ -47,9 +47,9 @@ void SubstitutionBytes(state_t *state);
 /**
  * 0000 1111 (8-bit) -> sbox[0,15]
  * @param round
- * @param values
+ * @param state
  */
-void SubstitutionBytesWord(const uint8_t *values, uint8_t *output);
+void SubstitutionBytesWord(uint8_t *state);
 
 /**
  * 1 2 3 4 -> 1 2 3 4
@@ -63,7 +63,14 @@ void SubstitutionBytesWord(const uint8_t *values, uint8_t *output);
 void ShiftRows(state_t *state);
 
 /**
- * GF(8)
+ *
+ * @param state
+ */
+void InversveShiftRows(state_t *state);
+
+/**
+ * GF(8) = x^7 + x^5...
+ * 1011 1111 = BF
  * P(X) = X^3 + X + 1
  *
  * @param state
@@ -74,7 +81,7 @@ void MixColumnsNew(state_t *state);
 
 void MixColumnsLookupTable(state_t *state);
 
-void MixRColumnsLookupTable(state_t *state);
+void InverseMixColumnsLookupTable(state_t *state);
 
 /**
  *
@@ -90,7 +97,6 @@ void MixCol(state_t *state);
  *  E8	C0	FC	56 -> C0 FC	56 E8 -> BA XX XX XX ->
  */
 
-
 //uint8_t state[Nb][Nk];
 
 /**
@@ -98,7 +104,14 @@ void MixCol(state_t *state);
  * @param key
  * @param output
  */
-void LeftCircularShift(const uint8_t *key, uint8_t *output);
+void LeftCircularShift(uint8_t *key);
+
+/**
+ *
+ * @param key
+ * @param output
+ */
+void RightCircularShift(const uint8_t *key, uint8_t *output);
 
 /**
  * Need to be same size two array
@@ -157,14 +170,21 @@ void Debug(const char *msg, const uint8_t *data, const uint8_t size);
  *
  * @param key
  */
-void key_expansion(uint8_t round, uint8_t *key);
+void key_expansion(const uint8_t *key, uint8_t w[4][44]);
 
 /**
  *
  * @param state
  * @param key
  */
-void Cipher(state_t *state, uint8_t *key);
+void Encryption(state_t *state, uint8_t *key);
+
+/**
+ *
+ * @param state
+ * @param key
+ */
+void Decryption(state_t *state, uint8_t *key);
 
 /**
  *
@@ -180,5 +200,7 @@ void PrintState(const char *msg, state_t *state);
  * @param r
  */
 void gmix_columns(uint8_t *r);
+
+void get_round_key(size_t round, uint8_t w[4][44], uint8_t key[16]);
 
 #endif //AES_AES_H

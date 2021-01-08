@@ -7,3 +7,5 @@ set(CMAKE_CXX_STANDARD 11)
 add_executable(driver main.cpp)
 
 target_link_libraries(driver PRIVATE aes)
+
+install(TARGETS driver DESTINATION bin)
