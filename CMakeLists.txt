@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(aes)
 
+enable_testing()
+
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
     # Update submodules as needed
@@ -18,7 +20,6 @@ endif()
 
 add_subdirectory(aesctl)
 add_subdirectory(verifyer)
-add_subdirectory(driver)
 
 add_subdirectory(modules)
 
