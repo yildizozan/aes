@@ -5,7 +5,7 @@
 
 #include <aes.h>
 
-#define GFLAGS_STRIP_INTERNAL_FLAG_HELP 1
+
 #define STRIP_FLAG_HELP 1
 
 #include <gflags/gflags.h>
@@ -52,31 +52,6 @@ static bool KeyValidator(const char *flagname, const std::string &value) {
 //DEFINE_validator(message, &IsNonEmptyMessage);
 
 DEFINE_validator(key, &KeyValidator);
-
-/**
- * Helper
- * @link https://stackoverflow.com/a/25456330
- * @param hex
- * @param size
- * @return
- */
-char *hex_to_base64(char *hex, int size) {
-    int size64 = (size * 2) / 3.0;
-    size64 += 1;
-    char *base64 = (char *) calloc(size64, 1);
-    size64 -= 1;
-    for (int i = size - 1; i >= 0; i -= 3, size64 -= 2) {
-        base64[size64] |= hex[i];
-        if (i > 0) {
-            base64[size64] |= ((hex[i - 1] << 4) & 0x3F); //0x3F is 00111111
-            base64[size64 - 1] |= (hex[i - 1] >> 2);
-        }
-        if (i > 1) {
-            base64[size64 - 1] |= ((hex[i - 2] << 2));
-        }
-    }
-    return base64;
-}
 
 int main(int argc, char *argv[]) {
     gflags::SetUsageMessage("Hello, World! Welcome AES Cipher");
@@ -135,7 +110,8 @@ int main(int argc, char *argv[]) {
 
     // This variable needs to other modes
     // For example CBC
-    state_t last_state = {0};
+    state_t state_last = {0};
+    state_t *state_table = (state_t *) malloc(blocks.size() * sizeof(state_t));
 
     // Core loop
     // All block starting to here for encrypt
@@ -161,25 +137,25 @@ int main(int argc, char *argv[]) {
                     }
                 } else {
                     for (int i = 0; i < Nb * Nk; ++i) {
-                        state[i] ^= last_state[i];
+                        state[i] ^= state_last[i];
                     }
                 }
                 Encryption(&state, key);
                 for (int i = 0; i < Nb * Nk; ++i) {
-                    last_state[i] = state[i];
+                    state_last[i] = state[i];
                 }
             }
             if (FLAGS_ofb) {
                 if (n == 0) {
                     Encryption(&iv, key);
                     for (int i = 0; i < Nb * Nk; ++i) {
-                        last_state[i] = iv[i];
+                        state_last[i] = iv[i];
                     }
                 } else {
                     Encryption(&state, key);
                 }
                 for (int i = 0; i < Nb * Nk; ++i) {
-                    state[i] ^= last_state[i];
+                    state[i] ^= state_last[i];
                 }
             }
         }
@@ -189,27 +165,46 @@ int main(int argc, char *argv[]) {
             }
             if (FLAGS_cbc) {
                 for (int i = 0; i < Nb * Nk; ++i) {
-                    last_state[i] = state[i];
+                    state_table[n][i] = state[i];
                 }
                 Decryption(&state, key);
                 if (n == 0) {
                     for (int i = 0; i < Nb * Nk; ++i) {
-                        state[i] = state[i] ^ iv[i];
+                        state[i] ^= iv[i];
                     }
                 } else {
                     for (int i = 0; i < Nb * Nk; ++i) {
-                        state[i] = state[i] ^ last_state[i];
+                        state[i] = state[i] ^ state_table[n - 1][i];
                     }
                 }
             }
-            if (FLAGS_ofb) {}
-        }
+            if (FLAGS_ofb) {
+                if (n==0) {
+                    Decryption(&iv, key);
+                    for (int i = 0; i < Nb * Nk; ++i) {
+                        state_last[i] = iv[i];
+                    }
+                } else {
+                    Decryption(&state_last, key);
+                }
 
+                for (int i = 0; i < Nb * Nk; ++i) {
+                    state[i] = state[i] ^ state_last[i];
+                }
+            }
+        }
+#ifdef DEBUG
+        for (int i = 0; i < Nb * Nk; ++i) {
+            printf("%02X ", state_table[n][i]);
+        }
+#endif
         // Write result file
         for (unsigned i = 0; i < Nb * Nk; ++i) {
             if (state[i] != 0) {
                 outfile << state[i];
+#ifdef DEBUG
                 fprintf(stdout, "%02X", state[i]);
+#endif
             }
         }
     }

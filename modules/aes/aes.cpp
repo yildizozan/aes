@@ -240,7 +240,7 @@ void key_expansion(const uint8_t *key, uint8_t w[4][44]) {
     }
 
 #ifdef DEBUG
-        printf("offset: %d %x\n", offset, offset);
+    printf("key_expansion summary\n");
 
         for (int row = 0; row < 4; ++row) {
             for (int col = 0; col < 44; ++col) {
@@ -254,7 +254,9 @@ void key_expansion(const uint8_t *key, uint8_t w[4][44]) {
 
 void AddRoundKey(state_t *state, const uint8_t subKey[]) {
     for (int i = 0; i < Nb * Nk; ++i) {
-        //printf("%02X ^ %02X = %02X\n", (*state)[i], subKey[i], (*state)[i] ^ subKey[i]);
+#ifdef DEBUG
+        printf("%02X ^ %02X = %02X\n", (*state)[i], subKey[i], (*state)[i] ^ subKey[i]);
+#endif
         (*state)[i] = subKey[i] ^ (*state)[i];
     }
 }
@@ -267,12 +269,17 @@ void SubstitutionBytes(state_t *state) {
     //printf("Subs:\t");
     for (uint8_t i = 0; i < Nb * Nk; ++i) {
         uint8_t c = (*state)[i];
-        uint8_t msb4 = (c >> 4); /* Attention */
-        uint8_t lsb4 = c & 0x0F; /* Attention */
+        uint8_t msb4 = (c >> 4); /* Attention don't need it */
+        uint8_t lsb4 = c & 0x0F; /* Attention don't need it */
         (*state)[i] = sbox[c];
-        //printf("%02X\t", sbox[msb4][lsb4]);
+#ifdef DEBUG
+        printf("%02X\t", sbox[msb4][lsb4]);
+#endif
     }
-    //printf("\n");
+#ifdef DEBUG
+    printf("\n");
+#endif
+
 }
 
 void InverseSubstitutionBytes(state_t *state) {
@@ -301,7 +308,9 @@ void ShiftRows(state_t *state) {
         }
     }
 
-    //PrintState(new_state);
+#ifdef DEBUG
+    PrintState(new_state);
+#endif
 
     // Rotate first row 1 columns to left
     temp = new_state[1][0];
@@ -331,8 +340,9 @@ void ShiftRows(state_t *state) {
             (*state)[index++] = new_state[row][col];
         }
     }
-
-    //PrintState(state);
+#ifdef DEBUG
+    PrintState(state);
+#endif
 }
 
 void InversveShiftRows(state_t *state) {
